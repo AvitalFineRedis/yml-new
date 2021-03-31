@@ -3,7 +3,7 @@
 import argparse
 import os
 import sys
-import jinja2
+#import jinja2
 import re
 
 #parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -20,15 +20,15 @@ args = {
     "destinationfile": ["new.yml"] 
 }
 
-include_role = "@include"
+include_role = "@include "
+newfile = None
 
-def readfile(newfile, filename) :
+def readfile(filename) :
     with open(filename, 'r') as file:
         for line in file.readlines():
             if line.startswith(include_role):
-                print("hi")
                 nextfilename = line[len(include_role):].strip() # isolate the name of the file
-                readfile(newfile, nextfilename) 
+                readfile(nextfilename) 
             else:
                 newfile.write(line)
 
@@ -40,5 +40,5 @@ if not args["file"] is None and not args["destinationfile"] is None:
 
     for i, filename in enumerate(args["file"]):
         newfile = open(args["destinationfile"][i], 'a')
-        readfile(newfile, filename)
+        readfile(filename)
 

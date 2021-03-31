@@ -19,26 +19,53 @@ args = {
     "file": ["circleci.txt"],
     "destinationfile": ["new.yml"] 
 }
+vars = {}
 
 include_role = "@include "
-newfile = None
+functionbeginnig_role = "@def "
+functionending_role = "@end"
 
-def readfile(filename) :
+
+def readfunction(file, function_name):
+    function_content = ""
+
+    # check if the name of the function is not empty
+    if not function_name:
+        #throw some exeption 
+        exit(1)
+
+    # read the function content
+    line = file.readline()
+    while line and not line.startswith(functionending_role):
+        function_content += line
+        line = file.readline()
+
+    vars[function_name] = function_content
+
+
+def readfile(newfile, filename) :
     with open(filename, 'r') as file:
-        for line in file.readlines():
+        line = file.readline()
+        while line: 
             if line.startswith(include_role):
                 nextfilename = line[len(include_role):].strip() # isolate the name of the file
-                readfile(nextfilename) 
+                readfile(newfile, nextfilename)   
+            elif line.startswith(functionbeginnig_role):
+                name = line[len(functionbeginnig_role):].strip() # isolate the name of the function
+                readfunction(file, name)
             else:
                 newfile.write(line)
 
+            line = file.readline()
+
 
 if not args["file"] is None and not args["destinationfile"] is None:
-    if len(args["destinationfile"]) != len(args["file"]):
+    if len(args["file"]) != len(args["destinationfile"]):
         # throw some exception
-        exit(0)
+        exit(1)
 
     for i, filename in enumerate(args["file"]):
-        newfile = open(args["destinationfile"][i], 'a')
-        readfile(filename)
+        newfile = open(args["destinationfile"][i], 'w')
+        readfile(newfile, filename)
 
+exit(0)

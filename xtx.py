@@ -3,7 +3,7 @@
 import argparse
 import os
 import sys
-#import jinja2
+import jinja2
 import re
 
 #parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -65,7 +65,11 @@ if not args["file"] is None and not args["destinationfile"] is None:
         exit(1)
 
     for i, filename in enumerate(args["file"]):
-        newfile = open(args["destinationfile"][i], 'w')
+        newfile = open(args["destinationfile"][i] + ".jinja", 'w')
         readfile(newfile, filename)
+        
+        file = open(args["destinationfile"][i] + ".jinja", 'r')
+        t = file
+        print(jinja2.Template(t).render(vars))
 
 exit(0)

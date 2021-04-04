@@ -29,7 +29,7 @@ functionending_role = "@end"
 def readfunction(file, function_name):
     function_content = ""
 
-    # check if the name of the function is not empty
+    # check if the name of the function is empty
     if not function_name:
         #throw some exeption 
         exit(1)

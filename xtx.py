@@ -57,15 +57,9 @@ if __name__ == "__main__":
 
     p.add_option("-s", "--sourcefile", dest="surcefiles", action="append", help="insert the files you want to parse")
     p.add_option("-d", "--destinationfile", dest="destinationfiles", action="append", help="insert the destination for each file you want to parse")
-    #args = {
-     #   "file": ["circleci.txt"],
-      #  "destinationfile": ["new.yml"] 
-    #}
 
     (options, args) = p.parse_args()
-    print(options.surcefiles)
-    print(options.destinationfiles)
-    print(type(options))
+
     if not options.surcefiles is None and not options.destinationfiles is None:
         if len(options.surcefiles) != len(options.destinationfiles):
             sys.stderr.write("The number of the source files must be equal to the number of the destination files")

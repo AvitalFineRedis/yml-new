@@ -1,0 +1,91 @@
+
+@define workflows
+  version: 2
+  default-flow:
+    jobs:
+      {{default-flow}}
+  nightly:
+    triggers:
+      - schedule:
+          cron: "{{nightly-workflow-time}} * * *"
+          filters:
+            branches:
+              only: master
+    jobs:
+      {{nightly-flow}}
+@end
+
+@define flow:default
+- {{flow:lint}}
+    {{on-any-branch}}
+- {{flow:coverage}}
+    {{on:any-branch}}
+- {{flow:valgrind}}
+    {{on:integ-branch}}
+- {{flow:build}}
+    {{on:non-integ-branch}}
+- {{flow:build-platforms:linux-x64}}
+    {{on:integ-branch}}
+- {{flow:build-platforms:linux-arm8}}
+    {{on:integ-branch}}
+- {{flow:build-multiarch-docker}}
+    {{never}}
+- {{flow:deploy-snapshots}}
+    {{on:integ-branch}}
+- {{flow:deploy-release}}
+    {{on:version-tags}}
+- {{flow:automation:release}}
+    {{on:version-tags}
+@end
+
+@define flow:lint
+- lint
+@end
+
+@define flow:coverage
+- coverage:
+    context: common
+@end
+
+@define flow:platforms-build:x64-linux
+- platforms-build:
+    context: common
+    matrix:
+      parameters:
+        platform: {{x64-platforms}}
+@end
+
+@define flow:deploy-snapshots
+- deploy-artifacts:
+    name: deploy_snapshot
+    location: snapshots
+    context: common
+    {{on:integ-branch}}
+    requires:
+      - platforms-build
+      - arm-platforms-build
+@end
+
+@define flow:deploy-release
+- deploy-artifacts:
+    name: deploy_release
+    context: common
+    {{on:version-tags}}
+    requires:
+      - platforms-build
+      - arm-platforms-build
+@end
+
+@define flow:release-automation
+- release-automation:
+    context: common
+    requires:
+      - deploy_release
+    {{on:version-tags}
+@end
+
+@define flow:default-nightly
+- build-macos
+- valgrind
+- {{flow:nightly-automation}} 
+@end

@@ -1,0 +1,162 @@
+
+@define commands
+{{command:abort_for_docs}}
+{{command:early_return_for_forked_pull_requests}}
+{{command:setup-executor}}
+{{command:setup-automation}}
+{{command:checkout-all}}
+{{command:persist-artifacts}}
+{{command:platforms-build-steps}}
+{{command:vm-platforms-build-steps}}
+# comments are allowed inside @define but need to play nice with non-blank prefix indents
+@end
+
+#----------------------------------------------------------------------------------------------
+
+@define command:abort_for_docs
+abort_for_docs:
+  steps:
+    - run:
+        name: Avoid tests for docs
+        command: |
+          if [[ $CIRCLE_BRANCH == *_docs ]]; then
+            echo "Identifies as documents PR, no testing required"
+            circleci step halt
+          fi
+@end
+
+@define command:early_return_for_forked_pull_requests
+early_return_for_forked_pull_requests:
+  description: >-
+    If this build is from a fork, stop executing the current job and return success.
+    This is useful to avoid steps that will fail due to missing credentials.
+  steps:
+    - run:
+        name: Early return if this build is from a forked PR
+        command: |
+          if [[ -n "$CIRCLE_PR_NUMBER" ]]; then
+            echo "Nothing to do for forked PRs, so marking this step successful"
+            circleci step halt
+          fi
+@end
+
+#----------------------------------------------------------------------------------------------
+
+@define command:setup-executor
+setup-executor:
+  steps:
+    - run:
+        name: Setup executor
+        command: |
+          apt-get -qq update
+          apt-get -q install -y git openssh-client curl ca-certificates make tar gzip
+          bash <(curl -fsSL https://get.docker.com)
+    - setup_remote_docker:
+        docker_layer_caching: true
+@end
+
+@define command:setup-automation
+setup-automation:
+  steps:
+    - run:
+        name: Setup automation
+        command: |
+          git submodule update --init deps/readies
+          ./deps/readies/bin/getpy3
+@end
+
+@define command:checkout-all
+checkout-all:
+  steps:
+    - checkout
+    - run:
+        name: Checkout submodules
+        command: git submodule update --init --recursive
+@end
+
+#----------------------------------------------------------------------------------------------
+
+@define command:persist-artifacts
+persist-artifacts:
+  steps:
+    - persist_to_workspace:
+        root: bin/
+        paths:
+          - artifacts/snapshots/*.zip
+          - artifacts/snapshots/*.tgz
+          - artifacts/snapshots/*.tar
+          - artifacts/*.zip
+          - artifacts/*.tgz
+          - artifacts/*.tar
+    - run:
+        name: Cleanup test log dir
+        command: rm -f tests/flow/logs/*.rdb
+    - store_artifacts:
+        path: tests/flow/logs
+@end
+
+#----------------------------------------------------------------------------------------------
+
+@define command:platforms-build-steps
+platforms-build-steps:
+  parameters:
+    platform:
+      type: string
+  steps:
+    {{steps:prebuild}}
+    - run:
+        name: Build for platform
+        command: |
+          cd build/docker
+          make build OSNICK=<<parameters.platform>> VERSION=$CIRCLE_TAG BRANCH=$CIRCLE_BRANCH ARTIFACTS=1 TEST=1 SHOW=1
+        no_output_timeout: 30m
+    - early_return_for_forked_pull_requests
+    - run:
+        name: Build for platform (publish)
+        command: |
+          docker login -u redisfab -p $DOCKER_REDISFAB_PWD
+          cd build/docker
+          make publish OSNICK=<<parameters.platform>> VERSION=$CIRCLE_TAG BRANCH=$CIRCLE_BRANCH OFFICIAL=0 SHOW=1 VERBOSE=1
+    - persist-artifacts 
+@end
+
+@define command:vm-platforms-build-steps
+  build-steps:
+    parameters:
+      platform:
+        type: string
+      getredis_params:
+        type: string
+        default: ""
+      build_params:
+        type: string
+        default: ""
+      test_params:
+        type: string
+        default: ""
+    steps:
+      {{steps:prebuild}}
+      - run:
+          name: Build
+          command: make build <<parameters.build_params>> SHOW=1
+      - run:
+          name: Pack
+          command: make pack SHOW=1
+      - run:
+          name: Tests
+          command: |
+            mkdir -p ~/workspace/tests
+            make test TEST_REPORT_DIR=$HOME/workspace/tests <<parameters.test_params>> SHOW=1
+@end
+
+#----------------------------------------------------------------------------------------------
+
+@define steps:prebuild
+- abort_for_docs
+- setup-executor
+- checkout-all
+- setup-automation
+# comments are allowed inside @define but need to play nice with non-blank prefix indents
+@end
+
+# note we also can omit the `-` from steps::prebuild and introduce it before {{steps:prebuild}}

@@ -1,0 +1,61 @@
+@include circleci/defs
+
+commands:
+  {{commands}}
+  # more commands here
+
+jobs:
+  {{jobs}}
+  # more jobs here
+
+@def x64-platforms = [focal, bionic, xenial, centos7, centos8]
+@def arm8-platforms = [focal, bionic]
+
+@def nightly-workflow-time = 20 17
+
+# disable valgrind (useful in PRs)
+@def no_valgrind = 1
+
+workflows:
+  {{workflows}}
+
+# either:
+
+@define default-flow
+{{flow:default}}
+@end
+
+@define nightly-flow
+{{flow:nightly}}
+@end
+
+# or (for more control):
+
+@define default-flow
+- {{flow:lint}}
+    {{on-any-branch}}
+- {{flow:build:
+    {{on:non-integ-branch}}
+- {{flow:coverage}}
+    {{on:any-branch}}
+- {{flow:build-platforms:linux-x64}}
+    {{on:integ-branch}}
+- {{flow:build-platforms:linux-arm8}}
+    {{on:integ-branch}}
+- {{flow:build-multiarch-docker}}
+    {{never}}
+- {{flow:valgrind}}
+    {{on:integ-branch}}
+- {{flow:deploy-snapshots}}
+    {{on:integ-branch}}
+- {{flow:deploy-release}}
+    {{on:version-tags}}
+- {{flow:automation:release}}
+    {{on:version-tags}
+@end
+
+@define nightly-flow
+- macos-build
+- valgrind
+- {{flow:automation:nightly}}
+@end

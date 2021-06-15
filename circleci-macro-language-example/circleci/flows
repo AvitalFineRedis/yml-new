@@ -35,7 +35,7 @@
 - {{flow:deploy-release}}
     {{on:version-tags}}
 - {{flow:automation:release}}
-    {{on:version-tags}
+    {{on:version-tags}}
 @end
 
 @define flow:lint
@@ -81,7 +81,7 @@
     context: common
     requires:
       - deploy_release
-    {{on:version-tags}
+    {{on:version-tags}}
 @end
 
 @define flow:default-nightly

@@ -1,6 +1,5 @@
 version: 2.1
 
-@include circleci/filters
 @include circleci/commands
 @include circleci/jobs
 @include circleci/flows

@@ -4,11 +4,11 @@
 {{job:build}}
 {{job:coverage}}
 {{job:valgrind}}
-{{job:platforms-build-linux-x64}}
-{{job:platforms-build-linux-arm8}}
+{{job:platforms-build:linux-x64}}
+{{job:platforms-build:linux-arm8}}
 {{job:multiarch-docker}}
-{{job:platforms-build-macos-x64}}
-{{job:platforms-build-macos-arm8}}
+{{job:platforms-build:macos-x64}}
+{{job:platforms-build:macos-arm8}}
 {{job:deploy-artifacts}}
 {{job:qa-automation}}
 @end

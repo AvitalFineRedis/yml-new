@@ -100,6 +100,9 @@ class Gena(object):
                 elif line.startswith("#"):
                         pass
 
+                elif line.startswith("#"):
+                        pass
+
                 else:
                     m = re.search('{{(.+?)}}', line)
                     if m: 
@@ -137,7 +140,6 @@ class Gena(object):
                 found = True
 
         return found, file_path
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')

@@ -100,14 +100,20 @@ class Gena(object):
                 elif line.startswith("#"):
                         pass
 
+                elif line.startswith("#"):
+                        pass
+
                 else:
                     m = re.search('{{(.+?)}}', line)
                     if m: 
                         name = m.group(1)
                         if name in self.vars:
                             content = self.vars[name]
-                            for cur_line in content:
-                                working_lines.append(indentation + cur_line)
+                            if isinstance(content, list):
+                                for cur_line in content:
+                                    working_lines.append(indentation + cur_line)
+                            else:
+                                working_lines.append(indentation + content + '\n')
                             finished = False
                         else:
                             working_lines.append(indentation + line)
@@ -137,7 +143,6 @@ class Gena(object):
                 found = True
 
         return found, file_path
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')

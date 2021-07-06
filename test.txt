@@ -259,31 +259,44 @@ workflows:
     default-flow:
       jobs:
         - lint
-            <            <            :                         *            o            n            -            a            n            y            -            b            r            a            n            c            h        - {{flow:build}}
-            <            <            :                         *            n            o            t            -            o            n            -            i            n            t            e            g            -            b            r            a            n            c            h        - coverage:
+            <<: *on-any-branch
+        - {{flow:build}}
+            <<: *not-on-integ-branch
+        - coverage:
             context: common
-            <            <            :                         *            o            n            -            a            n            y            -            b            r            a            n            c            h        - {{flow:build-platforms:linux-x64}}
-            <            <            :                         *            o            n            -            i            n            t            e            g            -            b            r            a            n            c            h        - {{flow:build-platforms:linux-arm8}}
-            <            <            :                         *            o            n            -            i            n            t            e            g            -            b            r            a            n            c            h        - {{flow:build-multiarch-docker}}
-            <            <            :                         *            n            e            v            e            r        - {{flow:valgrind}}
-            <            <            :                         *            o            n            -            i            n            t            e            g            -            b            r            a            n            c            h        - deploy-artifacts:
+            <<: *on-any-branch
+        - {{flow:build-platforms:linux-x64}}
+            <<: *on-integ-branch
+        - {{flow:build-platforms:linux-arm8}}
+            <<: *on-integ-branch
+        - {{flow:build-multiarch-docker}}
+            <<: *never
+        - {{flow:valgrind}}
+            <<: *on-integ-branch
+        - deploy-artifacts:
             name: deploy_snapshot
             location: snapshots
             context: common
-            <            <            :                         *            o            n            -            i            n            t            e            g            -            b            r            a            n            c            h            requires:
+            <<: *on-integ-branch
+            requires:
               - platforms-build
               - arm-platforms-build
-            <            <            :                         *            o            n            -            i            n            t            e            g            -            b            r            a            n            c            h        - deploy-artifacts:
+            <<: *on-integ-branch
+        - deploy-artifacts:
             name: deploy_release
             context: common
-            <            <            :                         *            n            o            t            -            v            e            r            s            i            o            n            -            t            a            g            s            requires:
+            <<: *not-version-tags
+            requires:
               - platforms-build
               - arm-platforms-build
-            <            <            :                         *            n            o            t            -            v            e            r            s            i            o            n            -            t            a            g            s        - {{flow:automation:release}}
-            <            <            :                         *            n            o            t            -            v            e            r            s            i            o            n            -            t            a            g            s    nightly:
+            <<: *not-version-tags
+        - {{flow:automation:release}}
+            <<: *not-version-tags
+    nightly:
       triggers:
         - schedule:
-            2            0                         1            7            filters:
+            20 17
+            filters:
               branches:
                 only: master
       jobs:

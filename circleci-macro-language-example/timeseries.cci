@@ -39,8 +39,8 @@ workflows:
 
 @define default-flow
 - {{flow:lint}}
-    {{on-any-branch}}
-- {{flow:build:
+    {{on:any-branch}}
+- {{flow:build}}
     {{on:non-integ-branch}}
 - {{flow:coverage}}
     {{on:any-branch}}
@@ -49,7 +49,7 @@ workflows:
 - {{flow:build-platforms:linux-arm8}}
     {{on:integ-branch}}
 - {{flow:build-multiarch-docker}}
-    {{never}}
+    {{on:never}}
 - {{flow:valgrind}}
     {{on:integ-branch}}
 - {{flow:deploy-snapshots}}

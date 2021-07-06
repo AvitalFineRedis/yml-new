@@ -17,7 +17,7 @@
 
 @define flow:default
 - {{flow:lint}}
-    {{on-any-branch}}
+    {{on:any-branch}}
 - {{flow:coverage}}
     {{on:any-branch}}
 - {{flow:valgrind}}
@@ -29,7 +29,7 @@
 - {{flow:build-platforms:linux-arm8}}
     {{on:integ-branch}}
 - {{flow:build-multiarch-docker}}
-    {{never}}
+    {{on:never}}
 - {{flow:deploy-snapshots}}
     {{on:integ-branch}}
 - {{flow:deploy-release}}

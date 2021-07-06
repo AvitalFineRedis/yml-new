@@ -88,7 +88,7 @@ arm-platforms-build:
         platform: <<parameters.platform>>
 @end
 
-@define job:multiarch-docker-build
+@define job:multiarch-docker
 @end
 
 @define job:build:macos-x64

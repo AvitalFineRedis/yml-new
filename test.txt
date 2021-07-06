@@ -1,0 +1,293 @@
+version: 2.1
+
+commands:
+  abort_for_docs:
+    steps:
+      - run:
+          name: Avoid tests for docs
+          command: |
+            if [[ $CIRCLE_BRANCH == *_docs ]]; then
+              echo "Identifies as documents PR, no testing required"
+              circleci step halt
+            fi
+  early_return_for_forked_pull_requests:
+    description: >-
+      If this build is from a fork, stop executing the current job and return success.
+      This is useful to avoid steps that will fail due to missing credentials.
+    steps:
+      - run:
+          name: Early return if this build is from a forked PR
+          command: |
+            if [[ -n "$CIRCLE_PR_NUMBER" ]]; then
+              echo "Nothing to do for forked PRs, so marking this step successful"
+              circleci step halt
+            fi
+  setup-executor:
+    steps:
+      - run:
+          name: Setup executor
+          command: |
+            apt-get -qq update
+            apt-get -q install -y git openssh-client curl ca-certificates make tar gzip
+            bash <(curl -fsSL https://get.docker.com)
+      - setup_remote_docker:
+          docker_layer_caching: true
+  setup-automation:
+    steps:
+      - run:
+          name: Setup automation
+          command: |
+            git submodule update --init deps/readies
+            ./deps/readies/bin/getpy3
+  checkout-all:
+    steps:
+      - checkout
+      - run:
+          name: Checkout submodules
+          command: git submodule update --init --recursive
+  persist-artifacts:
+    steps:
+      - persist_to_workspace:
+          root: bin/
+          paths:
+            - artifacts/snapshots/*.zip
+            - artifacts/snapshots/*.tgz
+            - artifacts/snapshots/*.tar
+            - artifacts/*.zip
+            - artifacts/*.tgz
+            - artifacts/*.tar
+      - run:
+          name: Cleanup test log dir
+          command: rm -f tests/flow/logs/*.rdb
+      - store_artifacts:
+          path: tests/flow/logs
+  platforms-build-steps:
+    parameters:
+      platform:
+        type: string
+    steps:
+      - abort_for_docs
+      - setup-executor
+      - checkout-all
+      - setup-automation
+      - run:
+          name: Build for platform
+          command: |
+            cd build/docker
+            make build OSNICK=<<parameters.platform>> VERSION=$CIRCLE_TAG BRANCH=$CIRCLE_BRANCH ARTIFACTS=1 TEST=1 SHOW=1
+          no_output_timeout: 30m
+      - early_return_for_forked_pull_requests
+      - run:
+          name: Build for platform (publish)
+          command: |
+            docker login -u redisfab -p $DOCKER_REDISFAB_PWD
+            cd build/docker
+            make publish OSNICK=<<parameters.platform>> VERSION=$CIRCLE_TAG BRANCH=$CIRCLE_BRANCH OFFICIAL=0 SHOW=1 VERBOSE=1
+      - persist-artifacts 
+    build-steps:
+      parameters:
+        platform:
+          type: string
+        getredis_params:
+          type: string
+          default: ""
+        build_params:
+          type: string
+          default: ""
+        test_params:
+          type: string
+          default: ""
+      steps:
+        - abort_for_docs
+        - setup-executor
+        - checkout-all
+        - setup-automation
+        - run:
+            name: Build
+            command: make build <<parameters.build_params>> SHOW=1
+        - run:
+            name: Pack
+            command: make pack SHOW=1
+        - run:
+            name: Tests
+            command: |
+              mkdir -p ~/workspace/tests
+              make test TEST_REPORT_DIR=$HOME/workspace/tests <<parameters.test_params>> SHOW=1
+
+jobs:
+  lint:
+    docker:
+      - image: redislabsmodules/llvm-toolset:latest
+    steps:
+      - abort_for_docs
+      - checkout-all
+      - setup-automation
+      - run:
+          name: lint
+          command: |
+            make setup
+            make lint
+  build:
+    docker:
+      - image: redisfab/rmbuilder:6.2.1-x64-buster
+    steps:
+      - build_steps:
+          platform: debian
+  coverage:
+    docker:
+      - image: redisfab/rmbuilder:6.2.1-x64-buster
+    steps:
+      - abort_for_docs
+      - checkout-all
+      - run:
+          name: Build & Test
+          command: |
+            make setup
+            make build COV=1 SHOW=1
+            make test COV=1
+            bash <(curl -s https://codecov.io/bash) -f bin/linux-x64-debug-cov/cov.info
+      - store_artifacts:
+          path: coverage
+          destination: coverage
+  valgrind:
+    docker:
+      - image: redisfab/rmbuilder:6.2.1-x64-buster
+    steps:
+      - build_steps:
+          platform: debian
+          build_params: VALGRIND=1 -j
+          test_params: VALGRIND=1 SIMPLE=1
+          getredis_params: --valgrind
+  arm-platforms-build:
+    parameters:
+      platform:
+        type: string
+    machine:
+      image: ubuntu-2004:202101-01
+    resource_class: arm.medium
+    steps:
+      - vm-platforms-build-steps:
+          platform: <<parameters.platform>>
+  {{job:platforms-build:macos-x64}}
+  {{job:platforms-build:macos-arm8}}
+  deploy-artifacts:
+    parameters:
+      location:
+        type: string
+        default: ""
+    docker:
+      - image: redisfab/rmbuilder:6.2.1-x64-buster
+    steps:
+      - abort_for_docs
+      - early_return_for_forked_pull_requests
+      - attach_workspace:
+          at: workspace
+      - run:
+          name: Deploy to S3
+          command: |
+            cd "workspace/artifacts/<<parameters.location>>"
+            du -ah --apparent-size *
+            if [[ -z <<parameters.location>> ]]; then
+                path="/"
+            else
+                path="<<parameters.location>>/"
+            fi
+            for f in `ls *.zip *.tgz`; do
+              aws s3 cp $f s3://redismodules/$PACKAGE_NAME/$path --acl public-read
+            done 
+
+on-any-branch: &on-any-branch
+  filters:
+    branches:
+      only: /.*/
+    tags:
+      only: /.*/
+
+never: &never
+  filters:
+    branches:
+      ignore: /.*/
+    tags:
+      ignore: /.*/
+
+on-master: &on-master
+  filters:
+    branches:
+      only: master
+    tags:
+      ignore: /.*/
+
+on-integ-branch: &on-integ-branch
+  filters:
+    branches:
+      only:
+        - master
+        - /^\d+\.\d+.*$/
+        - /^feature-.*$/
+    tags:
+      ignore: /.*/
+
+not-on-integ-branch: &not-on-integ-branch
+  filters:
+    branches:
+      ignore:
+        - master
+        - /^\d+\.\d+.*$/
+        - /^feature-.*$/
+    tags:
+      ignore: /.*/
+
+on-version-tags: &on-version-tags
+  filters:
+    branches:
+      ignore: /.*/
+    tags:
+      only: /^v[0-9].*/
+
+on-integ-and-version-tags: &on-integ-and-version-tags
+  filters:
+    branches:
+      only:
+        - master
+        - /^\d+\.\d+.*$/
+        - /^feature-.*$/
+    tags:
+      only: /^v[0-9].*/
+
+workflows:
+    version: 2
+    default-flow:
+      jobs:
+        - lint
+            <            <            :                         *            o            n            -            a            n            y            -            b            r            a            n            c            h        - {{flow:build}}
+            <            <            :                         *            n            o            t            -            o            n            -            i            n            t            e            g            -            b            r            a            n            c            h        - coverage:
+            context: common
+            <            <            :                         *            o            n            -            a            n            y            -            b            r            a            n            c            h        - {{flow:build-platforms:linux-x64}}
+            <            <            :                         *            o            n            -            i            n            t            e            g            -            b            r            a            n            c            h        - {{flow:build-platforms:linux-arm8}}
+            <            <            :                         *            o            n            -            i            n            t            e            g            -            b            r            a            n            c            h        - {{flow:build-multiarch-docker}}
+            <            <            :                         *            n            e            v            e            r        - {{flow:valgrind}}
+            <            <            :                         *            o            n            -            i            n            t            e            g            -            b            r            a            n            c            h        - deploy-artifacts:
+            name: deploy_snapshot
+            location: snapshots
+            context: common
+            <            <            :                         *            o            n            -            i            n            t            e            g            -            b            r            a            n            c            h            requires:
+              - platforms-build
+              - arm-platforms-build
+            <            <            :                         *            o            n            -            i            n            t            e            g            -            b            r            a            n            c            h        - deploy-artifacts:
+            name: deploy_release
+            context: common
+            <            <            :                         *            n            o            t            -            v            e            r            s            i            o            n            -            t            a            g            s            requires:
+              - platforms-build
+              - arm-platforms-build
+            <            <            :                         *            n            o            t            -            v            e            r            s            i            o            n            -            t            a            g            s        - {{flow:automation:release}}
+            <            <            :                         *            n            o            t            -            v            e            r            s            i            o            n            -            t            a            g            s    nightly:
+      triggers:
+        - schedule:
+            2            0                         1            7            filters:
+              branches:
+                only: master
+      jobs:
+        - macos-build
+        - valgrind
+        - {{flow:automation:nightly}}
+

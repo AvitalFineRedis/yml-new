@@ -66,20 +66,9 @@ class Gena(object):
                 # check include statements                    
                 if line.startswith("@include"):
                     nextfilename = line[len("@include")+1:].strip()  # isolate the name of the file
-                    found = False
-                    file_path = ""
-                    if isinstance(self.library, list):
-                        for lib in self.library:
-                            file_path = os.path.join(lib, nextfilename)
-                            if os.path.exists(file_path):
-                                found = True
-                                break
-                    else:
-                        file_path = os.path.join(self.library, nextfilename)
-                        if os.path.exists(file_path):
-                            found = True
+                    found, file_path = self._find_file(nextfilename)
 
-                    if found:
+                    if found and file_path:
                         with open(file_path, 'r') as f_inc:
                             _ , included_lines = self.parseDefinitionsAndInclude_newversion(f_inc.readlines())
                             working_lines += included_lines
@@ -129,82 +118,25 @@ class Gena(object):
             
             return finished, working_lines
 
-    def readDefinition(self, fp, name):
+    def _find_file(self, file_name):
         """
-        This function reads the content of the function.
-        Make sure that the pointer of the file will be on
-        the first line of the function
+        Loop over the given libraries and looking for the file.
+        Return bool that indicates if the file was found or not,
+        and returns the file's path if it was found.
         """
-        content = []
+        found = False
+        if isinstance(self.library, list):
+            for lib in self.library:
+                file_path = os.path.join(lib, file_name)
+                if os.path.exists(file_path):
+                    found = True
+                    break
+        else:
+            file_path = os.path.join(self.library, file_name)
+            if os.path.exists(file_path):
+                found = True
 
-        # check if the name of the function is not empty
-        if not name:
-            raise RuntimeError("Must declare a name for function after @define")
-
-        # read the function content
-        line = fp.readline()
-        while line and not line.startswith("@end"):
-            content += line
-            line = fp.readline()
-
-        # insert the content to the dictionary corresponding
-        # to the name (the key)
-        self.vars[name] = content
-
-    def readFile(self):
-        for _ in range(6):
-            # print(_)
-            self.dest = open(self.destname, 'w+')
-            self.parseDefinitionsAndInclude(self.srcname)
-            self.srcname = self.destname
-            # print("flow:automation:release" in self.vars.keys())
-
-    def parseDefinitionsAndInclude(self, filename):
-
-        with open(filename, 'r') as fp:
-            # we use the readline methodology to be able to continue to
-            # read the file in readDefinition method from the same line
-            # we left this method
-            line = fp.readline()
-            while line:
-                p = re.compile(r"^\s*")
-                result = p.search(line)
-                indentation = result.group()
-                line = line[len(indentation):]
-                if line.startswith("@include"):
-                    nextfilename = line[len("@include")+1:].strip()  # isolate the name of the file
-                    self.parseDefinitionsAndInclude(self.library + nextfilename)
-
-                elif line.startswith("@define"):
-                    name = line[len("@define")+1:].strip()  # isolate the name of the function
-                    self.readDefinition(fp, name)
-
-                elif line.startswith("@def"):
-                    temp = line[len("@def")+1:].strip().split('=')
-                    # if lenght of temp != 2 -> need to throw exeption
-                    name = temp[0].strip()
-                    content = temp[1].strip()
-                    # print (name, "->", content)
-                    self.vars[name] = content
-
-                elif line.startswith("#"):
-                        pass
-
-                else:
-                    m = re.search('{{(.+?)}}', line)
-                    if m: 
-                        name = m.group(1)
-                        if name in self.vars:
-                            value = self.vars[name]
-                            for l in value.splitlines():
-                                self.dest.write(indentation + l + "\n")
-                        else:
-                            self.dest.write(indentation + line)
-
-                    else:
-                        self.dest.write(indentation + line)
-
-                line = fp.readline()
+        return found, file_path
 
 
 if __name__ == "__main__":
